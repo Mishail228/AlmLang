@@ -1,25 +1,24 @@
-1. Реализовать в первую очередь:
-    - Сделать статическую типизацию
-    - Переделать в компиляцию в двоичный код
+1. Implement first:
+    - Static type-system
+    - Compile to binary code
     - std::io
     - std::format
     - std::time
-    - Цикл for
+    - Cycle for
     - else if
-    - оператор as
-    - Константы
-    - Использование кучи
+    - operator as
+    - Consts
+    - Ability to use heap
     - std::mem
     - std::weak_ptr
-    - Массивы
-    - Кортежи
-    - Итераторы
-    - Диапазоны
-    - Срезы
-    - Ссылки
-    - Собственные структуры
-    - Простая система владения и заимствования
-2. Во вторую очередь:
+    - Arrays
+    - Tuples
+    - Iterators
+    - Ranges
+    - Slices
+    - References
+    - Ability to make your own structs
+2. Second:
     - std::file
     - std::net
     - std::rand
@@ -28,33 +27,33 @@
     - std::smart_ptr
     - std::collections
     - Vector, LinkedList, HashMap, HashSet, BTreeMap
-    - Перечисления
-    - Дженерики
+    - Enums
+    - Generics
     - match
-    - Обработка ошибок с Result и Option
-    - Замыкания
-    - Обработка методов
-    - Static
-    - Деструктуризация массивов/кортежей
-    - Оператор ?
-    - Перегрузка операторов
-    - Оператор распространения(...)
-    - Именованные аргументы функций
-    - Трейты/Интерфейсы
-3. В последнюю очередь:
+    - Result<T, E> and Option<T>
+    - Closures
+    - Methods
+    - Statics
+    - Destructuring arrays/tuples
+    - Operator ?
+    - Operator overloading
+    - Spread Operator(...)
+    - Named function arguments
+    - Traits/Interfaces
+3. Last:
     - std::process
     - std::thread
     - std::sync
     - std::ffi
-    - Возможность отложить выполнение кода до конца функции(aka defer в Go)
-    - Модульная система
-    - Создание своих операторов
-    - Макросы
-    - Форматтер кода
-    - Анализатор кода
-    - LSP сервер
-    - Генераторы(yield)
-    - Документация
-    - Отладчик
-    - Пакетный менеджер
-    - Своя IDE
+    - The ability to delay code execution until the end of the function(aka defer in Go)
+    - The module system
+    - Creating your own operators
+    - Macros
+    - Code formatter
+    - Code analyzer
+    - LSP 
+    - Generators(yield)
+    - Simple documentation
+    - Debugger
+    - Package Manager
+    - IDE
