@@ -232,6 +232,22 @@ impl VM {
                         _ => return Err("BITOR: Unsupported types".into()),
                     })
                 },
+                OpCode::LShift => {
+                    let b = self.stack.pop().ok_or("LSHIFT: Stack underflow")?;
+                    let a = self.stack.pop().ok_or("LSHIFT: Stack underflow")?;
+                    self.stack.push(match (a, b) {
+                        (Value::Int(a), Value::Int(b)) => Value::Int(a << b),
+                        _ => return Err("LSHIFT: Unsupported types".into()),
+                    })
+                },
+                OpCode::RShift => {
+                    let b = self.stack.pop().ok_or("RSHIFT: Stack underflow")?;
+                    let a = self.stack.pop().ok_or("RSHIFT: Stack underflow")?;
+                    self.stack.push(match (a, b) {
+                        (Value::Int(a), Value::Int(b)) => Value::Int(a >> b),
+                        _ => return Err("RSHIFT: Unsupported types".into()),
+                    })
+                }
                 OpCode::GetLocal(idx) => {
                     let frame = &self.frames[frame_idx];
                     if idx >= frame.func.locals_count {
@@ -363,6 +379,8 @@ pub enum OpCode {
     BitAnd,
     BitOr,
     BitXor,
+    LShift,
+    RShift,
 
     GetLocal(usize), // Загрузить значение локальной переменной на верх стека
     SetLocal(usize), // Выгрузить значение с верха стека в локальную переменную

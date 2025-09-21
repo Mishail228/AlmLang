@@ -110,6 +110,8 @@ pub enum BinaryOp {
     BitOr,
     BitXor,
     BitNot,
+    LShift,
+    RShift,
 }
 
 impl From<Token> for BinaryOp {

@@ -117,6 +117,8 @@ impl Compiler {
             BinaryOp::BitOr => OpCode::BitOr,
             BinaryOp::BitXor => OpCode::BitXor,
             BinaryOp::BitNot => OpCode::BitNot,
+            BinaryOp::LShift => OpCode::LShift,
+            BinaryOp::RShift => OpCode::RShift,
             // TODO: LSHIFT, RSHIFT
         };
 

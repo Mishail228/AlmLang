@@ -250,16 +250,81 @@ impl Parser {
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
-        let mut expr = self.parse_term()?;
+        let mut expr = self.parse_bitor()?;
 
         while self.match_any(&[Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual])? {
             let op = self.previous().ok_or(ParseError::UsizeUnderflow)?.clone();
-            let right = self.parse_term()?;
+            let right = self.parse_bitor()?;
             
             expr = Expr::Binary {
                 op: BinaryOp::from(op),
                 left: Box::new(expr),
                 right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_bitor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_xor()?;
+
+        while self.match_token(Token::BitwiseOr)? {
+            let right = self.parse_xor()?;
+            
+            expr = Expr::Binary {
+                op: BinaryOp::BitOr,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_xor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_bitand()?;
+
+        while self.match_token(Token::BitwiseXor)? {
+            let right = self.parse_bitand()?;
+            
+            expr = Expr::Binary {
+                op: BinaryOp::BitXor,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_bitand(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_shift()?;
+
+        while self.match_token(Token::BitwiseAnd)? {
+            let right = self.parse_shift()?;
+            
+            expr = Expr::Binary {
+                op: BinaryOp::BitAnd,
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_shift(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_term()?;
+
+        while self.match_any(&[Token::LShift, Token::RShift])? {
+            let op = self.previous().ok_or(ParseError::UsizeUnderflow)?.clone();
+            let right = self.parse_term()?;
+
+            expr = Expr::Binary {
+                op: BinaryOp::from(op),
+                left: Box::new(expr),
+                right: Box::new(right)
             };
         }
 

@@ -1,5 +1,4 @@
 fn main() {
-    let a = (10 + 5) / 2.5 + 81 / 9;
-    a = "Hello";
+    let a = 10 ^ 13;
     return a;
 }
