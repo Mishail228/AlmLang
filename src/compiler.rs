@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
+use crate::type_checker::TypeChecker;
 use crate::vm::{OpCode, Function};
 
 #[derive(Debug)]
@@ -22,16 +23,19 @@ impl Compiler {
             local_names: HashMap::new(),
         }
     }
-    pub fn compile_ast(&mut self, statements: Vec<Stmt>) -> Result<Vec<Function>, String> {
+    pub fn compile_ast(&mut self, mut statements: Vec<Stmt>) -> Result<Vec<Function>, String> {
         self.functions.clear();
         self.cur_chunk.clear();
         self.cur_func_name.clear();
         self.locals_count = 0;
         self.local_names.clear();
 
+        let mut type_checker = TypeChecker::new();
+        type_checker.check(&mut statements)?;
+
         for stmt in statements {
-            if let Stmt::Function { name, params, body } = stmt {
-                self.compile_function(name, params, body)?;
+            if let Stmt::Function { name, params, body, return_type} = stmt {
+                self.compile_function(name, params, body, return_type)?;
             } else {
                 return Err("All statements must be inside functions. Use 'fn main() { ... }' for entry point.".to_string());
             }
@@ -44,8 +48,8 @@ impl Compiler {
     }
     fn compile_stmt(&mut self, stmt: Stmt) -> Result<(), String> {
         match stmt {
-            Stmt::VarDecl { name, init } => self.compile_var_decl(name, init)?,
-            Stmt::Assign { name, expr } => self.compile_assign(name, expr)?,
+            Stmt::VarDecl { name, init, ..} => self.compile_var_decl(name, init)?,
+            Stmt::Assign { name, expr, ..} => self.compile_assign(name, expr)?,
             Stmt::ExprStmt(expr) => {
                 self.compile_expr(expr)?;
                 self.emit(OpCode::Pop);
@@ -53,18 +57,17 @@ impl Compiler {
             Stmt::Return(expr) => self.compile_return(expr)?,
             Stmt::If { cond, then, else_branch } => self.compile_if(cond, then, else_branch)?,
             Stmt::While { cond, body } => self.compile_while(cond, body)?,
-            Stmt::Function { name, params, body } => self.compile_function(name, params, body)?,
+            Stmt::Function { name, params, body, return_type } => self.compile_function(name, params, body, return_type)?,
         }
         Ok(())
     }
     fn compile_expr(&mut self, expr: Expr) -> Result<(), String> {
         match expr {
-            Expr::Literal(val) => self.emit(OpCode::Const(val)),
-            Expr::Variable(name) => self.compile_variable(name)?,
-            Expr::Binary { op, left, right } => self.compile_binary_op(*left, op, *right)?,
-            Expr::Unary { op, expr } => self.compile_unary(op, *expr)?,
-            Expr::Call { name, args } => self.compile_call(name, args)?,
-            Expr::Grouping(expr) => self.compile_expr(*expr)?,
+            Expr::Literal { val, .. } => self.emit(OpCode::Const(val)),
+            Expr::Variable { name, .. } => self.compile_variable(name)?,
+            Expr::Binary { op, left, right, .. } => self.compile_binary_op(*left, op, *right)?,
+            Expr::Unary { op, expr, .. } => self.compile_unary(op, *expr)?,
+            Expr::Call { name, args, .. } => self.compile_call(name, args)?,
         }
         Ok(())
     }
@@ -85,13 +88,13 @@ impl Compiler {
     fn compile_assign(&mut self, name: String, expr: Expr) -> Result<(), String> {
         self.compile_expr(expr)?;
 
-        let var_idx = *self.local_names.get(&name).ok_or(format!("Undefinded variable: {}", name))?;
+        let var_idx = *self.local_names.get(&name.clone()).ok_or(format!("Undefinded variable: {}", name))?;
         self.emit(OpCode::SetLocal(var_idx));
 
         Ok(())
     }
     fn compile_variable(&mut self, name: String) -> Result<(), String> {
-        let var_idx = *self.local_names.get(&name).ok_or(format!("Undefined variable: {}", name))?;
+        let var_idx = *self.local_names.get(&name.clone()).ok_or(format!("Undefined variable: {} 1", name))?;
         self.emit(OpCode::GetLocal(var_idx));
         Ok(())
     }
@@ -197,18 +200,17 @@ impl Compiler {
         self.patch_jump(exit_jump_pos, end_pos);
         Ok(())
     }
-    fn compile_function(&mut self, name: String, params: Vec<String>, body: Block) -> Result<(), String> {
+    fn compile_function(&mut self, name: String, params: Vec<(String, Type)>, body: Block, ret_t: Type) -> Result<(), String> {
         let saved_chunk = std::mem::replace(&mut self.cur_chunk, Vec::new());
         let saved_locals_count = self.locals_count;
         let saved_local_names = std::mem::replace(&mut self.local_names, HashMap::new());
         let saved_function_name = std::mem::replace(&mut self.cur_func_name, name.clone());
         self.locals_count = 0;
-
+        
         for (i, param) in params.iter().enumerate() {
-            self.local_names.insert(param.clone(), i);
+            self.local_names.insert(param.0.clone(), i);
             self.locals_count += 1;
         }
-
         for stmt in body.stmts {
             self.compile_stmt(stmt)?;
         }
@@ -221,6 +223,7 @@ impl Compiler {
         let function = Function {
             name: name.clone(),
             chunk: self.cur_chunk.clone(),
+            ret_t,
             arity: params.len(),
             locals_count: self.locals_count
         };

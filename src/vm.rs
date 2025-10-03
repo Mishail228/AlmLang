@@ -1,12 +1,12 @@
 use std::{collections::HashMap};
 
-use crate::ast::Value;
-
+use crate::ast::{Type, Value};
 
 #[derive(Debug, Clone)]
 pub struct Function {
     pub arity: usize,
     pub locals_count: usize,
+    pub ret_t: Type,
     pub name: String,
     pub chunk: Vec<OpCode>,
 }
@@ -409,6 +409,7 @@ mod test {
                 OpCode::Add,
                 OpCode::Return,
             ],
+            ret_t: Type::Int,
             arity: 2,
             locals_count: 2,
         };
@@ -424,6 +425,7 @@ mod test {
                 OpCode::Call(2),
                 OpCode::Halt
             ],
+            ret_t: Type::Void,
             arity: 0,
             locals_count: 0,
         };
@@ -449,6 +451,7 @@ mod test {
                 OpCode::Add,
                 OpCode::Return,
             ],
+            ret_t: Type::Int,
             arity: 3,
             locals_count: 4,
         };
@@ -465,6 +468,7 @@ mod test {
                 OpCode::Call(3),
                 OpCode::Halt
             ],
+            ret_t: Type::Void,
             arity: 0,
             locals_count: 0,
         };

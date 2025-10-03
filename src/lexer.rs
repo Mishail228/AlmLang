@@ -1,3 +1,5 @@
+use crate::ast::Type;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     VarDecl,
@@ -9,6 +11,7 @@ pub enum Token {
     For,
     True,
     False,
+    Type(Type),
 
     Identifier(String),
     Int(i64),
@@ -44,6 +47,8 @@ pub enum Token {
     RBrace,
     Comma,
     Semicolon,
+    Colon,
+    ArrRight,
     
     EOF
 }
@@ -74,6 +79,12 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                     "while" => tokens.push(Token::While),
                     "true" => tokens.push(Token::True),
                     "false" => tokens.push(Token::False),
+                    "int" | "i64" => tokens.push(Token::Type(Type::Int)),
+                    "float" | "f64" => tokens.push(Token::Type(Type::Float)),
+                    "string" | "str" => tokens.push(Token::Type(Type::String)),
+                    "char" => tokens.push(Token::Type(Type::Char)),
+                    "bool" => tokens.push(Token::Type(Type::Bool)),
+                    "void" => tokens.push(Token::Type(Type::Void)),
                     _ => tokens.push(Token::Identifier(buffer)),
                 }
             },
@@ -149,7 +160,14 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 }
             },
             '+' => tokens.push(Token::Plus),
-            '-' => tokens.push(Token::Minus),
+            '-' => {
+                if let Some(&'>') = chars.peek() {
+                    chars.next();
+                    tokens.push(Token::ArrRight);
+                } else {
+                    tokens.push(Token::Minus);
+                }
+            },
             '*' => tokens.push(Token::Star),
             '/' => tokens.push(Token::Slash),
             '=' => {
@@ -233,6 +251,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             '}' => tokens.push(Token::RBrace),
             ',' => tokens.push(Token::Comma),
             ';' => tokens.push(Token::Semicolon),
+            ':' => tokens.push(Token::Colon),
 
             _ => {
                 return Err(format!("Invalid character '{}'", c));

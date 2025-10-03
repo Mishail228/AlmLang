@@ -47,13 +47,28 @@ impl Parser {
         let name: String;
         if let Some(t) = self.curr() {
             name = match t {
-                Token::Identifier(n) => n .clone(),
+                Token::Identifier(n) => n.clone(),
                 _ => return Err(ParseError::UnexpectedToken(t.clone()))
             };
         } else {
             return Err(ParseError::IndexOutOfBounds)
         }
         self.advance()?;
+        let var_type;
+        if Some(&Token::Colon) == self.curr() {
+            self.advance()?;
+            if let Some(t) = self.curr() {
+                match t {
+                    Token::Type(t) => var_type = t.clone(),
+                    _ => return Err(ParseError::UnexpectedToken(t.clone()))
+                }
+                self.advance()?;
+            } else {
+                return Err(ParseError::IndexOutOfBounds)
+            }
+        } else {
+            var_type = Type::Unknown; // Unknown
+        }
 
         if let Some(t) = self.curr() {
             match t {
@@ -63,12 +78,13 @@ impl Parser {
                     self.expect_token(Token::Semicolon)?;
                     Ok(Stmt::VarDecl {
                         name,
-                        init: Some(value)
+                        init: Some(value),
+                        var_type
                     })
                 },
                 Token::Semicolon => {
                     self.advance()?;
-                    Ok(Stmt::VarDecl { name, init: None })
+                    Ok(Stmt::VarDecl { name, init: None, var_type })
                 },
                 tok => Err(ParseError::ExpectedToken(Token::Semicolon, tok.clone()))
             }
@@ -152,7 +168,7 @@ impl Parser {
         let name = match self.curr() {
             Some(Token::Identifier(n)) => n.clone(),
             Some(t) => return Err(ParseError::UnexpectedToken(t.clone())),
-            None => return Err(ParseError::IndexOutOfBounds),
+            None => return Err(ParseError::UnexpectedToken(Token::EOF)),
         };
         self.advance()?;
         self.expect_token(Token::LParen)?;
@@ -168,7 +184,15 @@ impl Parser {
                     None => return Err(ParseError::IndexOutOfBounds),
                 }
                 self.advance()?;
-                params.push(param);
+                let arg_t;
+                self.expect_token(Token::Colon)?;
+                match self.curr() {
+                    Some(&Token::Type(t)) => arg_t = t,
+                    Some(t) => return Err(ParseError::UnexpectedToken(t.clone())),
+                    None => return Err(ParseError::UnexpectedToken(Token::EOF))
+                }
+                self.advance()?;
+                params.push((param, arg_t));
                 if self.check_token(&Token::RParen) {
                     break;
                 }
@@ -176,8 +200,25 @@ impl Parser {
             }
         }
         self.expect_token(Token::RParen)?;
+        let return_type;
+        match self.curr() {
+            Some(Token::ArrRight) => {
+                self.advance()?;
+                match self.curr() {
+                    Some(&Token::Type(t)) => return_type = t,
+                    Some(t) => return Err(ParseError::UnexpectedToken(t.clone())),
+                    None => return Err(ParseError::UnexpectedToken(Token::EOF))
+                }
+                self.advance()?;
+            }
+            Some(Token::LBrace) => return_type = Type::Void,
+            Some(t) => return Err(ParseError::UnexpectedToken(t.clone())),
+            None => return Err(ParseError::UnexpectedToken(Token::EOF))
+        }
         let body = self.parse_block()?;
-        Ok(Stmt::Function { name, params, body })
+        let f = Stmt::Function { name, params, body, return_type };
+        // println!("{:?}", f);
+        Ok(f)
     }
 
     fn parse_block(&mut self) -> Result<Block, ParseError> {
@@ -211,6 +252,7 @@ impl Parser {
                 op,
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
         Ok(expr)
@@ -227,6 +269,7 @@ impl Parser {
                 op,
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
         Ok(expr)
@@ -243,6 +286,7 @@ impl Parser {
                 op: BinaryOp::from(op),
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -260,6 +304,7 @@ impl Parser {
                 op: BinaryOp::from(op),
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -276,6 +321,7 @@ impl Parser {
                 op: BinaryOp::BitOr,
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -292,6 +338,7 @@ impl Parser {
                 op: BinaryOp::BitXor,
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -308,6 +355,7 @@ impl Parser {
                 op: BinaryOp::BitAnd,
                 left: Box::new(expr),
                 right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -324,7 +372,8 @@ impl Parser {
             expr = Expr::Binary {
                 op: BinaryOp::from(op),
                 left: Box::new(expr),
-                right: Box::new(right)
+                right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -341,7 +390,8 @@ impl Parser {
             expr = Expr::Binary { 
                 op: BinaryOp::from(op), 
                 left: Box::new(expr), 
-                right: Box::new(right) 
+                right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
 
@@ -358,7 +408,8 @@ impl Parser {
             expr = Expr::Binary { 
                 op: BinaryOp::from(op), 
                 left: Box::new(expr), 
-                right: Box::new(right) 
+                right: Box::new(right),
+                expr_type: Type::Unknown,
             };
         }
         Ok(expr)
@@ -373,7 +424,8 @@ impl Parser {
             let right = self.parse_unary()?;
             return Ok(Expr::Unary {
                 op: UnaryOp::from(op),
-                expr: Box::new(right)
+                expr: Box::new(right),
+                expr_type: Type::Unknown,
             });
         }
         self.parse_primary()
@@ -387,27 +439,27 @@ impl Parser {
         match token {
             Token::Int(n) => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::Int(n)))
+                Ok(Expr::Literal { val: Value::Int(n) })
             },
             Token::Float(n) => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::Float(n)))
+                Ok(Expr::Literal { val: Value::Float(n) })
             },
             Token::Char(c) => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::Char(c)))
+                Ok(Expr::Literal { val: Value::Char(c) })
             },
             Token::String(s) => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::String(s)))
+                Ok(Expr::Literal { val: Value::String(s) })
             },
             Token::True => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::Bool(true)))
+                Ok(Expr::Literal { val: Value::Bool(true) })
             },
             Token::False => {
                 self.advance()?;
-                Ok(Expr::Literal(Value::Bool(false)))
+                Ok(Expr::Literal { val: Value::Bool(false) })
             },
             Token::Identifier(name) => {
                 self.advance()?;
@@ -423,9 +475,9 @@ impl Parser {
                         }
                     }
                     self.expect_token(Token::RParen)?;
-                    Ok(Expr::Call { name, args })
+                    Ok(Expr::Call { name, args, return_type: Type::Unknown })
                 } else {
-                    Ok(Expr::Variable(name))
+                    Ok(Expr::Variable {name, expr_type: Type::Unknown })
                 }
             },
             Token::LParen => {
@@ -469,11 +521,9 @@ impl Parser {
             (a, b) => a == b,
         }
     }
-    #[inline]
     fn at_end(&self) -> bool {
         self.idx >= self.tokens.len() || self.tokens[self.idx] == Token::EOF
     }
-    #[inline]
     fn advance(&mut self) -> Result<(), ParseError> {
         if !self.at_end() {
             self.idx += 1;
@@ -481,15 +531,12 @@ impl Parser {
         }
         Err(ParseError::IndexOutOfBounds)
     }
-    #[cold]
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.idx + 1)
     }
-    #[inline]
     fn curr(&self) -> Option<&Token> {
         self.tokens.get(self.idx)
     }
-    #[cold]
     fn previous(&self) -> Option<&Token> {
         if self.idx == 0 {
             return None;
@@ -536,12 +583,14 @@ mod tests {
             ExprStmt(
                 Expr::Binary {
                     op: BinaryOp::Plus,
-                    left: Box::new(Expr::Literal(Value::Int(10))),
+                    left: Box::new(Expr::Literal { val: Value::Int(10) }),
                     right: Box::new(Expr::Binary {
                         op: BinaryOp::Star,
-                        left: Box::new(Expr::Literal(Value::Int(11))),
-                        right: Box::new(Expr::Literal(Value::Int(12))),
+                        left: Box::new(Expr::Literal { val: Value::Int(11) }),
+                        right: Box::new(Expr::Literal { val: Value::Int(12) }),
+                        expr_type: Type::Unknown,
                     }),
+                    expr_type: Type::Unknown,
                 }
             )
         ];
@@ -555,21 +604,22 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
         let expected = vec![
-            Stmt::VarDecl { name: String::from("x"), init: None },
+            Stmt::VarDecl { name: String::from("x"), init: None, var_type: Type::Unknown },
         ];
         assert_eq!(ast, expected);
     }
     
     #[test]
     fn test_var_decl_init() {
-        let code = "let x = 10;";
+        let code = "let x: int = 10;";
         let tokens = lex(code).unwrap();
         let mut parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
         let expected = vec![
             Stmt::VarDecl {
                 name: "x".to_string(), 
-                init: Some(Expr::Literal(Value::Int(10)))
+                init: Some(Expr::Literal { val: Value::Int(10) }),
+                var_type: Type::Int
             }
         ];
         
@@ -584,7 +634,7 @@ mod tests {
         let ast = parser.parse().unwrap();
         let expected = vec![Stmt::Assign { 
             name: String::from("x"), 
-            expr: Expr::Literal(Value::Int(42)) 
+            expr: Expr::Literal { val: Value::Int(42) }
         }];
         assert_eq!(ast, expected);
     }
@@ -599,8 +649,9 @@ mod tests {
             Stmt::Return(
                 Expr::Binary {
                     op: BinaryOp::Plus,
-                    left: Box::new(Expr::Literal(Value::Int(42))),
-                    right: Box::new(Expr::Literal(Value::Int(51)))
+                    left: Box::new(Expr::Literal { val: Value::Int(42) }),
+                    right: Box::new(Expr::Literal { val: Value::Int(51) }),
+                    expr_type: Type::Unknown
                 }
             )
         ];
@@ -621,21 +672,24 @@ mod tests {
             Stmt::If {
                 cond: Expr::Binary {
                     op: BinaryOp::EqualEqual,
-                    left: Box::new(Expr::Variable("a".to_string())),
-                    right: Box::new(Expr::Literal(Value::Int(10)))
+                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                    right: Box::new(Expr::Literal { val: Value::Int(10) }),
+                    expr_type: Type::Unknown
                 },
                 then: Block {
                     stmts: vec![
                         Stmt::VarDecl {
                             name: "x".to_string(),
-                            init: Some(Expr::Literal(Value::Int(25)))
+                            init: Some(Expr::Literal { val: Value::Int(25) }),
+                            var_type: Type::Unknown,
                         },
                         Stmt::Assign {
                             name: "a".to_string(),
                             expr: Expr::Binary {
                                 op: BinaryOp::Plus,
-                                left: Box::new(Expr::Variable("a".to_string())),
-                                right: Box::new(Expr::Literal(Value::Int(1)))
+                                left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                right: Box::new(Expr::Literal { val: Value::Int(1) }),
+                                expr_type: Type::Unknown
                             }
                         }
                     ]
@@ -649,7 +703,7 @@ mod tests {
     #[test]
     fn test_if_else() {
         let code = "if(a==10){\
-        let x = 25;\
+        let x: int = 25;\
         a = a + 1;\
         } else {\
         a = a * 2;\
@@ -661,21 +715,24 @@ mod tests {
             Stmt::If {
                 cond: Expr::Binary {
                     op: BinaryOp::EqualEqual,
-                    left: Box::new(Expr::Variable("a".to_string())),
-                    right: Box::new(Expr::Literal(Value::Int(10)))
+                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                    right: Box::new(Expr::Literal { val: Value::Int(10) }),
+                    expr_type: Type::Unknown,
                 },
                 then: Block {
                     stmts: vec![
                         Stmt::VarDecl {
                             name: "x".to_string(),
-                            init: Some(Expr::Literal(Value::Int(25)))
+                            init: Some(Expr::Literal { val: Value::Int(25) }),
+                            var_type: Type::Int,
                         },
                         Stmt::Assign {
                             name: "a".to_string(),
                             expr: Expr::Binary {
                                 op: BinaryOp::Plus,
-                                left: Box::new(Expr::Variable("a".to_string())),
-                                right: Box::new(Expr::Literal(Value::Int(1)))
+                                left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                right: Box::new(Expr::Literal { val: Value::Int(1) }),
+                                expr_type: Type::Unknown,
                             }
                         }
                     ]
@@ -686,8 +743,9 @@ mod tests {
                             name: "a".to_string(),
                             expr: Expr::Binary {
                                 op: BinaryOp::Star,
-                                left: Box::new(Expr::Variable("a".to_string())),
-                                right: Box::new(Expr::Literal(Value::Int(2)))
+                                left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                right: Box::new(Expr::Literal { val: Value::Int(2) }),
+                                expr_type: Type::Unknown
                             }
                         }
                     ]
@@ -713,8 +771,9 @@ mod tests {
             Stmt::If {
                 cond: Expr::Binary {
                     op: BinaryOp::Less,
-                    left: Box::new(Expr::Variable("a".to_string())),
-                    right: Box::new(Expr::Literal(Value::Int(10)))
+                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                    right: Box::new(Expr::Literal { val: Value::Int(10) }),
+                    expr_type: Type::Unknown
                 },
                 then: Block {
                     stmts: vec![
@@ -722,8 +781,9 @@ mod tests {
                             name: "a".to_string(),
                             expr: Expr::Binary {
                                 op: BinaryOp::Plus,
-                                left: Box::new(Expr::Variable("a".to_string())),
-                                right: Box::new(Expr::Literal(Value::Int(1)))
+                                left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                right: Box::new(Expr::Literal { val: Value::Int(1) }),
+                                expr_type: Type::Unknown
                             }
                         }
                     ]
@@ -735,14 +795,17 @@ mod tests {
                                 op: BinaryOp::And,
                                 left: Box::new(Expr::Binary {
                                     op: BinaryOp::GreaterEqual,
-                                    left: Box::new(Expr::Variable("a".to_string())),
-                                    right: Box::new(Expr::Literal(Value::Int(10)))
+                                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                    right: Box::new(Expr::Literal { val: Value::Int(10) }),
+                                    expr_type: Type::Unknown
                                 }),
                                 right: Box::new(Expr::Binary {
                                     op: BinaryOp::Less,
-                                    left: Box::new(Expr::Variable("a".to_string())),
-                                    right: Box::new(Expr::Literal(Value::Int(20)))
-                                })
+                                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                    right: Box::new(Expr::Literal { val: Value::Int(20) }),
+                                    expr_type: Type::Unknown
+                                }),
+                                expr_type: Type::Unknown
                             },
                             then: Block {
                                 stmts: vec![
@@ -750,8 +813,9 @@ mod tests {
                                         name: "a".to_string(),
                                         expr: Expr::Binary {
                                             op: BinaryOp::Plus,
-                                            left: Box::new(Expr::Variable("a".to_string())),
-                                            right: Box::new(Expr::Literal(Value::Int(2)))
+                                            left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                            right: Box::new(Expr::Literal { val: Value::Int(2) }),
+                                            expr_type: Type::Unknown
                                         }
                                     }
                                 ]
@@ -762,8 +826,9 @@ mod tests {
                                         name: "a".to_string(),
                                         expr: Expr::Binary {
                                             op: BinaryOp::Star,
-                                            left: Box::new(Expr::Variable("a".to_string())),
-                                            right: Box::new(Expr::Literal(Value::Int(2)))
+                                            left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                            right: Box::new(Expr::Literal { val: Value::Int(2) }),
+                                            expr_type: Type::Unknown
                                         }
                                     }
                                 ]
@@ -788,8 +853,9 @@ mod tests {
             Stmt::While {
                 cond: Expr::Binary {
                     op: BinaryOp::Less,
-                    left: Box::new(Expr::Variable("a".to_string())),
-                    right: Box::new(Expr::Literal(Value::Int(10)))
+                    left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                    right: Box::new(Expr::Literal { val: Value::Int(10) }),
+                    expr_type: Type::Unknown
                 },
                 body: Block {
                     stmts: vec![
@@ -797,9 +863,10 @@ mod tests {
                             name: "a".to_string(),
                             expr: Expr::Binary {
                                 op: BinaryOp::Plus,
-                                left: Box::new(Expr::Variable("a".to_string())),
-                                right: Box::new(Expr::Literal(Value::Int(1))),
-                            }
+                                left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                                right: Box::new(Expr::Literal { val: Value::Int(1) }),
+                                expr_type: Type::Unknown
+                            },
                         }
                     ]
                 }
@@ -810,7 +877,7 @@ mod tests {
     
     #[test]
     fn test_function_decl() {
-        let code = "fn sum(a, b) {\
+        let code = "fn sum(a: int, b: int) -> int {\
         return a + b;\
         }";
         let tokens = lex(code).unwrap();
@@ -819,16 +886,18 @@ mod tests {
         let expected = vec![
             Stmt::Function {
                 name: "sum".to_string(),
-                params: vec!["a".to_string(), "b".to_string()],
+                params: vec![("a".to_string(), Type::Int), ("b".to_string(), Type::Int)],
                 body: Block {
                     stmts: vec![
                         Stmt::Return(Expr::Binary {
                             op: BinaryOp::Plus,
-                            left: Box::new(Expr::Variable("a".to_string())),
-                            right: Box::new(Expr::Variable("b".to_string()))
+                            left: Box::new(Expr::Variable {name: "a".to_string(), expr_type: Type::Unknown}),
+                            right: Box::new(Expr::Variable {name: "b".to_string(), expr_type: Type::Unknown}),
+                            expr_type: Type::Unknown
                         })
                     ]
-                }
+                },
+                return_type: Type::Int,
             }
         ];
         assert_eq!(ast, expected);

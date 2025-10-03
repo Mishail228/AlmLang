@@ -1,11 +1,11 @@
 1. Implement first:
-    - Static type-system
+    - Static type-system - completed
     - Compile to binary code
     - std::io
     - std::format
     - std::time
     - Cycle for
-    - else if
+    - else if - completed
     - operator as
     - Consts
     - Ability to use heap

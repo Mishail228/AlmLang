@@ -1,4 +1,8 @@
-fn main() {
-    let a = 10 ^ 13;
-    return a;
+fn main() -> float {
+    return test(10, 2.0);
+}
+
+fn test(a: int, b: float) -> float {
+    b = b * 10.0;
+    return a + b;
 }

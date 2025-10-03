@@ -1,25 +1,36 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Display};
 use crate::lexer::Token;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Binary { op: BinaryOp, left: Box<Expr>, right: Box<Expr> },
-    Unary { op: UnaryOp, expr: Box<Expr> },
-    Literal(Value),
-    Variable(String),
-    Call { name: String, args: Vec<Expr> },
-    Grouping(Box<Expr>),
+    Binary { op: BinaryOp, left: Box<Expr>, right: Box<Expr>, expr_type: Type },
+    Unary { op: UnaryOp, expr: Box<Expr>, expr_type: Type },
+    Literal { val: Value },
+    Variable { name: String, expr_type: Type },
+    Call { name: String, args: Vec<Expr>, return_type: Type },
+}
+
+impl Expr {
+    pub fn get_type_field_mut(&mut self) -> Option<&mut Type> {
+        match self {
+            Self::Binary {expr_type, ..} => Some(expr_type),
+            Self::Unary {expr_type, .. } => Some(expr_type),
+            Self::Variable {expr_type, .. } => Some(expr_type),
+            Self::Call {return_type, .. } => Some(return_type),
+            Self::Literal { .. } => None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
-    VarDecl { name: String, init: Option<Expr> },
-    Assign { name: String, expr: Expr },
+    VarDecl { name: String, init: Option<Expr>, var_type: Type },
+    Assign { name: String, expr: Expr},
     ExprStmt(Expr),
     Return(Expr),
     If { cond: Expr, then: Block, else_branch: Option<Block> },
     While { cond: Expr , body: Block },
-    Function { name: String, params: Vec<String>, body: Block },
+    Function { name: String, params: Vec<(String, Type)>, return_type: Type, body: Block },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -91,6 +102,33 @@ impl PartialOrd for Value {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum Type {
+    Int,
+    Float,
+    Bool,
+    Char,
+    String,
+    Void,
+    Unknown,
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Type::Int => "int",
+            Type::Float => "float",
+            Type::Bool => "bool",
+            Type::Char => "char",
+            Type::String => "string",
+            Type::Unknown => "unknown",
+            Type::Void => "void",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinaryOp {
     Plus,
@@ -134,6 +172,8 @@ impl From<Token> for BinaryOp {
             Token::BitwiseOr => BinaryOp::BitOr,
             Token::BitwiseXor => BinaryOp::BitXor,
             Token::BitwiseNot => BinaryOp::BitNot,
+            Token::LShift => BinaryOp::LShift,
+            Token::RShift => BinaryOp::RShift,
             _ => panic!("Unexpected token {:?}", token)
         }
     }
